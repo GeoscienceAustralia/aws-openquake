@@ -13,7 +13,7 @@ oq-engine --upgrade-db -y
 sleep 1
 curl -X POST http://localhost:8080/ -d "running openquake"
 
-oq-engine --run-hazard=/usr/share/openquake/risklib/demos/hazard/SimpleFaultSourceClassicalPSHA/job.ini
+oq-engine --run-hazard=openquake/job.ini
 
 sleep 1
 curl -X POST http://localhost:8080/done -d "finished"

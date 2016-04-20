@@ -85,8 +85,10 @@ class Launcher(object):
         with SCPClient(ssh.get_transport()) as scp:
             # copy files to instance
             scp.put(files=['master_script.sh',
-                           'webserver.py'],
-                    remote_path='/tmp/')
+                           'webserver.py',
+                           'openquake'],
+                    remote_path='/tmp/',
+                    recursive=True)
 
             # run shell script on instance
             stdin, stdout, stdrr = ssh.exec_command('cd /tmp; \
