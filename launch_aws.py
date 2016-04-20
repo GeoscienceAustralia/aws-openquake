@@ -110,7 +110,10 @@ class Launcher(object):
                 except:
                     pass
 
-            scp.get(remote_path='/tmp/yes', local_path='.')
+            print('downloading results')
+            scp.get(remote_path='/home/ubuntu/oqdata',
+                    local_path='oqdata-' + self.timestamp,
+                    recursive=True)
 
 
 
