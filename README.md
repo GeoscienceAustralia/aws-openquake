@@ -52,10 +52,10 @@ tearing down
 ```
 
 This should result in an `oqdata-openquake-...` directory:
-```
-$ ls
-README.md                   oqdata-openquake-1461565289 scp.pyc
-launch_aws.py               test_launch_aws.py          webserver.py
-master_script.sh            requirements.txt            openquake
-openquake
-```
+<pre><code>$ ls
+README.md                    requirements.txt
+launch_aws.py                scp.py
+master_script.sh             scp.pyc
+openquake/                   test_launch_aws.py
+<b>oqdata-openquake-1461565845/</b> webserver.py
+</code></pre>
