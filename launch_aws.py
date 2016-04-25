@@ -9,11 +9,6 @@ import socket
 import requests
 
 
-hostname = '52.63.42.165'
-port = 22
-username = 'ubuntu'
-
-
 class Launcher(object):
     def __init__(self):
         self.timestamp = 'openquake-' + str(int(time.time()))
@@ -53,7 +48,7 @@ class Launcher(object):
                                              SecurityGroupIds=[self.timestamp],
                                              KeyName=self.timestamp)
 
-        # create tag for instance
+        # TODO create tag for instance
 
         self.instance = instance[0]
         self.instance.wait_until_running()
@@ -118,9 +113,6 @@ class Launcher(object):
                     recursive=True)
 
 
-
-
-
     def teardown(self):
         self.key.delete()
         os.remove(self.timestamp + '.pem')
@@ -138,26 +130,3 @@ if __name__ == '__main__':
     print('tearing down')
     launcher.teardown()
 
-    #
-    #
-
-    #
-    #
-
-
-
-    # launch master node
-    #   launch n slave nodes, with userdate=slave_script.sh
-
-    # wait until ready
-
-    # scp files (master_script.sh, webserver.py, openquake/)
-
-    # ssh_execute master_script.sh
-
-    # poll webserver until done=1 (get logs)
-
-    # scp results.zip
-
-    # terminate instance
-    # remove security group
