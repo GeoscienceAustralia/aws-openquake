@@ -23,6 +23,7 @@ class Launcher(object):
         self.key = self.ec2.create_key_pair(KeyName=self.timestamp)
         with open(self.timestamp + '.pem', 'w') as f:
             f.write(self.key.key_material)
+        os.chmod(self.timestamp + '.pem', 0o600)
 
         # create security group
         self.security_group = self.ec2.create_security_group(GroupName=self.timestamp,
@@ -53,7 +54,6 @@ class Launcher(object):
         self.instance = instance[0]
         self.instance.wait_until_running()
         self.ip_address = self.ec2.Instance(self.instance.id).public_ip_address
-
 
     def deploy(self):
         # poll SSH until successful connection
@@ -88,7 +88,7 @@ class Launcher(object):
             # run shell script on instance
             stdin, stdout, stdrr = ssh.exec_command('cd /tmp; \
                                                      chmod +x master_script.sh; \
-                                                     nohup ./master_script.sh  > /dev/null 2>&1 &')
+                                                     nohup ./master_script.sh  > aws_log.log 2>&1 &')
 
             # poll web service for logs, until 'done' received
             log_count = 0
@@ -107,11 +107,24 @@ class Launcher(object):
                 except:
                     pass
 
-            print('downloading results')
-            scp.get(remote_path='/home/ubuntu/oqdata',
-                    local_path='oqdata-' + self.timestamp,
-                    recursive=True)
+                # download aws_log.log
+                try:
+                    scp.get(remote_path='/tmp/aws_log.log',
+                            local_path='.')
+                except:
+                    pass
 
+            print('downloading results')
+            try:
+                scp.get(remote_path='/home/ubuntu/oqdata',
+                        local_path='oqdata-' + self.timestamp,
+                        recursive=True)
+            except Exception as e:
+                print('Error - could not download results: ' + str(e))
+                print('Check aws_log.log for logs of EC2 instance.')
+                print('You could also connect to instance using (in another terminal session, while keeping this '
+                      'program running): ssh -i ' + self.timestamp + '.pem' + ' ubuntu@' + self.ip_address)
+                raw_input('\n\n[Press any key to teardown]')
 
     def teardown(self):
         self.key.delete()
@@ -129,4 +142,3 @@ if __name__ == '__main__':
     launcher.deploy()
     print('tearing down')
     launcher.teardown()
-
