@@ -9,6 +9,16 @@ import socket
 import requests
 
 
+def signal_term_handler(func, signal, frame):
+    choice = raw_input("Are you sure you want to exit? (y or n): ")
+    if choice.lower() == 'y':
+        print('tearing down')
+        import sys
+        func()
+        sys.exit(0)
+    pass
+
+
 class Launcher(object):
     def __init__(self):
         self.timestamp = 'openquake-' + str(int(time.time()))
@@ -19,13 +29,15 @@ class Launcher(object):
         self.ip_address = None
 
     def setup(self):
-        # create SSH keypair
+        # SSH keypair
+        print('- creating SSH keypair')
         self.key = self.ec2.create_key_pair(KeyName=self.timestamp)
         with open(self.timestamp + '.pem', 'w') as f:
             f.write(self.key.key_material)
         os.chmod(self.timestamp + '.pem', 0o600)
 
-        # create security group
+        # security group
+        print('- creating security group')
         self.security_group = self.ec2.create_security_group(GroupName=self.timestamp,
                                                              Description='openquake')
 
@@ -42,6 +54,7 @@ class Launcher(object):
                                                              ])
 
         # launch master node
+        print('- launching instance')
         instance = self.ec2.create_instances(ImageId='ami-6c14310f',
                                              InstanceType='t2.micro',
                                              InstanceInitiatedShutdownBehavior='terminate',
@@ -55,9 +68,11 @@ class Launcher(object):
         self.instance = instance[0]
         self.instance.wait_until_running()
         self.ip_address = self.ec2.Instance(self.instance.id).public_ip_address
+        print('- launched: ' + self.ip_address)
 
     def deploy(self):
-        # poll SSH until successful connection
+        # poll SSH
+        print('- polling SSH until successful connection')
         while True:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1)
@@ -71,6 +86,7 @@ class Launcher(object):
             time.sleep(1)
 
         # SSH to instance
+        print('- connecting to instance via SSH (ssh -i ' + self.timestamp + '.pem ubuntu@' + self.ip_address + ')')
         ssh = SSHClient()
         ssh.set_missing_host_key_policy(AutoAddPolicy())
         ssh.connect(hostname=self.ip_address,
@@ -80,6 +96,7 @@ class Launcher(object):
 
         with SCPClient(ssh.get_transport()) as scp:
             # copy files to instance
+            print('- copying files to instance')
             scp.put(files=['master_script.sh',
                            'webserver.py',
                            'openquake'],
@@ -87,16 +104,18 @@ class Launcher(object):
                     recursive=True)
 
             # run shell script on instance
+            print('- executing script on instance')
             stdin, stdout, stdrr = ssh.exec_command('cd /tmp; \
                                                      chmod +x master_script.sh; \
                                                      nohup ./master_script.sh  > aws_log.log 2>&1 &')
 
             # poll web service for logs, until 'done' received
+            print('- polling instance for logs (run \'tail -f aws_log.log\' to get running output')
             log_count = 0
             while True:
                 time.sleep(1)
                 try:
-                    r = requests.get('http://' + launcher.ip_address + ':8080')
+                    r = requests.get('http://' + self.ip_address + ':8080')
                     json = r.json()
                     new_log_count = len(json['logs'])
                     if new_log_count > log_count:
@@ -123,23 +142,39 @@ class Launcher(object):
             except Exception as e:
                 print('Error - could not download results: ' + str(e))
                 print('Check aws_log.log for logs of EC2 instance.')
-                print('You could also connect to instance using (in another terminal session, while keeping this '
-                      'program running): ssh -i ' + self.timestamp + '.pem' + ' ubuntu@' + self.ip_address)
-                raw_input('\n\n[Press any key to teardown]')
+                # print('You could also connect to instance using (in another terminal session, while keeping this '
+                #       'program running): ssh -i ' + self.timestamp + '.pem' + ' ubuntu@' + self.ip_address)
+                # raw_input('\n\n[Press any key to teardown]')
 
     def teardown(self):
-        self.key.delete()
-        os.remove(self.timestamp + '.pem')
+        print('- terminating instance')
         self.instance.terminate()
         self.instance.wait_until_terminated()  # must terminate instance first, then security group
+
+        print('- deleting security group')
         self.security_group.delete()
+
+        print('- deleting SSH key')
+        self.key.delete()
+        os.remove(self.timestamp + '.pem')
 
 
 if __name__ == '__main__':
     launcher = Launcher()
-    print('setting up')
-    launcher.setup()
-    print('deploying')
-    launcher.deploy()
-    print('tearing down')
-    launcher.teardown()
+    # capture kill and Ctrl+C to give script chance to tear down
+    import signal
+    from functools import partial
+    signal.signal(signal.SIGTERM, partial(signal_term_handler, launcher.teardown))
+    signal.signal(signal.SIGINT, partial(signal_term_handler, launcher.teardown))
+
+    try:
+        print('setting up')
+        launcher.setup()
+        print('deploying')
+        launcher.deploy()
+
+    except Exception as e:
+        print("Error - could not run: " + str(e))
+    finally:
+        print('tearing down finally')
+        launcher.teardown()
