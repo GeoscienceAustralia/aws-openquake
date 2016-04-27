@@ -44,6 +44,7 @@ class Launcher(object):
         # launch master node
         instance = self.ec2.create_instances(ImageId='ami-6c14310f',
                                              InstanceType='t2.micro',
+                                             InstanceInitiatedShutdownBehavior='terminate',
                                              MinCount=1,
                                              MaxCount=1,
                                              SecurityGroupIds=[self.timestamp],
